@@ -1,17 +1,81 @@
 [project]
-name = "fastapi_app"
+name = "dance-monkey"
 version = "1.0.0"
-description = "Create a relecloud demo application with fastapi and postgres-flexible"
-dependencies = [
-    "azure-monitor-opentelemetry",
-    "fastapi",
-    "jinja2",
-    "uvicorn[standard]",
-    "python-multipart",
-    "psycopg2",
-    "sqlmodel",
+description = "AI舞蹈编排助手 - 基于Azure云服务的智能舞蹈分析系统"
+authors = [
+    { name = "DanceMonkey Team", email = "team@dancemonkey.com" }
 ]
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "gunicorn",
+    "python-multipart",
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+    "sqlmodel",
+    "psycopg2-binary",
+    "alembic",
+    "azure-storage-blob",
+    "azure-identity",
+    "azure-keyvault-secrets",
+    "azure-monitor-opentelemetry",
+    "python-dotenv",
+    "pydantic",
+    "pydantic-settings",
+    "tenacity",
+]
+requires-python = ">=3.9"
+readme = "README.md"
+license = { file = "LICENSE" }
+
+[project.urls]
+Homepage = "https://github.com/your-org/dance-monkey"
+Documentation = "https://your-org.github.io/dance-monkey"
+Repository = "https://github.com/your-org/dance-monkey.git"
+Issues = "https://github.com/your-org/dance-monkey/issues"
 
 [build-system]
-requires = ["flit_core<4"]
-build-backend = "flit_core.buildapi"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --cov=app --cov-report=term-missing"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*", "alembic/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

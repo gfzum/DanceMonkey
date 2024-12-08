@@ -280,8 +280,11 @@ Content-Type: application/json
 
 ### 任务状态订阅
 ```
-WebSocket: ws://api.example.com/ws/tasks/{task_id}
+WebSocket: wss://api.dancemonkey.azurewebsites.net/ws/tasks/{task_id}
 ```
+
+**连接参数**
+- `task_id`: 任务ID
 
 **消息格式**
 ```json
@@ -297,6 +300,45 @@ WebSocket: ws://api.example.com/ws/tasks/{task_id}
 }
 ```
 
+### WebSocket客户端示例
+```python
+import asyncio
+import websockets
+
+async def subscribe_task_status(task_id: str):
+    uri = f"wss://api.dancemonkey.azurewebsites.net/ws/tasks/{task_id}"
+    async with websockets.connect(uri) as websocket:
+        while True:
+            message = await websocket.recv()
+            data = json.loads(message)
+            print(f"Received update: {data}")
+
+# 使用示例
+asyncio.get_event_loop().run_until_complete(
+    subscribe_task_status("task-123")
+)
+```
+
+### 错误处理
+WebSocket连接可能会遇到以下错误：
+- 1000: 正常关闭
+- 1001: 服务端关闭
+- 1006: 异常关闭
+- 1011: 服务器错误
+
+建议实现自动重连机制，例如：
+```python
+async def connect_with_retry(task_id: str, max_retries: int = 5):
+    for i in range(max_retries):
+        try:
+            await subscribe_task_status(task_id)
+            break
+        except websockets.ConnectionClosed:
+            if i == max_retries - 1:
+                raise
+            await asyncio.sleep(2 ** i)  # 指数退避
+```
+
 ## 前端集成
 
 ### API客户端配置
@@ -304,20 +346,12 @@ WebSocket: ws://api.example.com/ws/tasks/{task_id}
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.VITE_API_URL,
+  baseURL: process.env.VITE_API_URL || 'http://localhost:8000',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
-  }
-});
-
-// 请求拦截器
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+  },
+  withCredentials: true  // 启用跨域Cookie
 });
 
 // 响应拦截器
@@ -325,33 +359,93 @@ api.interceptors.response.use(
   response => response.data,
   error => {
     if (error.response?.status === 401) {
-      // 处理认证错误
+      // 未认证，重定向到登录页面
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
+
+// API方法
+export const api = {
+  // 认证
+  auth: {
+    login: (username: string, password: string) => 
+      api.post('/api/auth/login', { username, password }),
+    logout: () => api.post('/api/auth/logout'),
+  },
+  
+  // 视频管理
+  videos: {
+    upload: (file: File, title: string, description: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', title);
+      formData.append('description', description);
+      return api.post('/api/v1/videos', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    },
+    get: (videoId: string) => api.get(`/api/v1/videos/${videoId}`),
+  },
+  
+  // 任务管理
+  tasks: {
+    getStatus: (taskId: string) => api.get(`/api/v1/tasks/${taskId}`),
+    cancel: (taskId: string) => api.post(`/api/v1/tasks/${taskId}/cancel`),
+  },
+  
+  // 结果管理
+  results: {
+    get: (taskId: string) => api.get(`/api/v1/results/${taskId}`),
+    export: (taskId: string, format: string) => 
+      api.post(`/api/v1/results/${taskId}/export`, { format }),
+  },
+};
 ```
 
-### WebSocket客户端配置
+### WebSocket客户端
 ```typescript
-class TaskWebSocket {
+export class TaskWebSocket {
   private ws: WebSocket;
-  private taskId: string;
-
-  constructor(taskId: string) {
-    this.taskId = taskId;
-    this.ws = new WebSocket(`${process.env.VITE_WS_URL}/ws/tasks/${taskId}`);
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  
+  constructor(taskId: string, onMessage: (data: any) => void) {
+    this.connect(taskId, onMessage);
+  }
+  
+  private connect(taskId: string, onMessage: (data: any) => void) {
+    const wsUrl = `${process.env.VITE_WS_URL || 'ws://localhost:8000'}/ws/tasks/${taskId}`;
+    this.ws = new WebSocket(wsUrl);
     
     this.ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      // 处理状态更新
+      onMessage(data);
+    };
+    
+    this.ws.onclose = () => {
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        const timeout = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
+        this.reconnectAttempts++;
+        setTimeout(() => this.connect(taskId, onMessage), timeout);
+      }
     };
   }
-
+  
   disconnect() {
+    this.reconnectAttempts = this.maxReconnectAttempts;  // 防止重连
     this.ws.close();
   }
 }
+
+// 使用示例
+const taskSocket = new TaskWebSocket('task-123', (data) => {
+  console.log('Task update:', data);
+});
+
+// 组件卸载时
+taskSocket.disconnect();
 ```
 
 ## 版本控制

@@ -4,85 +4,38 @@
 
 targetScope = 'subscription'
 
-// ------------------------------------------------------------
-// Parameters
-// ------------------------------------------------------------
-
 @minLength(1)
 @maxLength(64)
-@description('Name which is used to generate a short unique hash for each resource')
 param name string
+param location string = 'eastasia'
 
-@minLength(1)
-@description('Primary location for all resources')
-param location string
-
-@secure()
-@description('Database administrator password')
-param dbserverPassword string
-
-// ------------------------------------------------------------
-// Variables
-// ------------------------------------------------------------
-
+// Generate unique names
 var resourceToken = toLower(uniqueString(subscription().id, name, location))
 var prefix = '${name}-${resourceToken}'
 var tags = { 'azd-env-name': name }
 
-// ------------------------------------------------------------
-// Resource Group
-// ------------------------------------------------------------
-
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
+// Create resource group
+resource rg 'Microsoft.Resources/resourceGroups@2022-09-01' = {
   name: '${name}-rg'
   location: location
   tags: tags
 }
 
-// ------------------------------------------------------------
-// Storage Account
-// ------------------------------------------------------------
+// Database configuration
+@secure()
+param dbserverPassword string
 
-module storage 'core/storage/storage-account.bicep' = {
-  name: 'storage'
-  scope: resourceGroup
-  params: {
-    name: '${take(replace(prefix, '-', ''), 24)}storage'
-    location: location
-    tags: tags
-    allowBlobPublicAccess: false
-  }
-}
-
-// ------------------------------------------------------------
-// Monitoring
-// ------------------------------------------------------------
-
-module monitoring 'core/monitor/monitoring.bicep' = {
-  name: 'monitoring'
-  scope: resourceGroup
-  params: {
-    location: location
-    tags: tags
-    applicationInsightsName: '${prefix}-appinsights'
-    logAnalyticsName: '${take(prefix, 50)}-loganalytics'
-  }
-}
-
-// ------------------------------------------------------------
-// Database
-// ------------------------------------------------------------
-
+// Create PostgreSQL server
 module db 'core/database/postgresql/flexibleserver.bicep' = {
-  name: 'db'
-  scope: resourceGroup
+  scope: rg
+  name: 'postgresql'
   params: {
-    name: '${prefix}-db'
+    name: '${prefix}-postgresql'
     location: location
     tags: tags
     administratorLogin: 'dance-monkey'
     administratorLoginPassword: dbserverPassword
-    databaseNames: ['dance-monkey']
+    databaseNames: ['dancemonkey']
     sku: {
       name: 'Standard_B1ms'
       tier: 'Burstable'
@@ -95,13 +48,27 @@ module db 'core/database/postgresql/flexibleserver.bicep' = {
   }
 }
 
-// ------------------------------------------------------------
-// Key Vault
-// ------------------------------------------------------------
+// Create Storage Account
+module storage 'core/storage/storage-account.bicep' = {
+  scope: rg
+  name: 'storage'
+  params: {
+    name: '${prefix}storage'
+    location: location
+    tags: tags
+    sku: {
+      name: 'Standard_LRS'
+    }
+    kind: 'StorageV2'
+    accessTier: 'Hot'
+    allowBlobPublicAccess: false
+  }
+}
 
+// Create Key Vault (必需：用于ML服务和密码存储)
 module keyVault 'core/security/keyvault.bicep' = {
+  scope: rg
   name: 'keyvault'
-  scope: resourceGroup
   params: {
     name: '${prefix}-kv'
     location: location
@@ -109,13 +76,22 @@ module keyVault 'core/security/keyvault.bicep' = {
   }
 }
 
-// ------------------------------------------------------------
-// Azure Machine Learning
-// ------------------------------------------------------------
+// Create Application Insights
+module monitoring 'core/monitor/monitoring.bicep' = {
+  scope: rg
+  name: 'monitoring'
+  params: {
+    applicationInsightsName: '${prefix}-appinsights'
+    logAnalyticsName: '${prefix}-logs'
+    location: location
+    tags: tags
+  }
+}
 
+// Create Azure Machine Learning
 module machinelearning 'core/ai/machinelearning.bicep' = {
+  scope: rg
   name: 'machinelearning'
-  scope: resourceGroup
   params: {
     name: '${prefix}-ml'
     location: location
@@ -126,32 +102,10 @@ module machinelearning 'core/ai/machinelearning.bicep' = {
   }
 }
 
-// ------------------------------------------------------------
-// Frontend (Static Web App)
-// ------------------------------------------------------------
-
-module frontend 'core/host/staticwebapp.bicep' = {
-  name: 'frontend'
-  scope: resourceGroup
-  params: {
-    name: '${prefix}-web'
-    location: location
-    tags: tags
-    appSettings: {
-      VITE_API_URL: 'https://${prefix}-api.azurewebsites.net'
-      VITE_STORAGE_URL: storage.outputs.primaryEndpoints.blob
-      VITE_APP_INSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
-    }
-  }
-}
-
-// ------------------------------------------------------------
-// Backend (App Service)
-// ------------------------------------------------------------
-
+// Create App Service Plan
 module appServicePlan 'core/host/appserviceplan.bicep' = {
+  scope: rg
   name: 'appserviceplan'
-  scope: resourceGroup
   params: {
     name: '${prefix}-plan'
     location: location
@@ -162,47 +116,54 @@ module appServicePlan 'core/host/appserviceplan.bicep' = {
   }
 }
 
+// Create Backend App Service
 module backend 'core/host/appservice.bicep' = {
-  name: 'backend'
-  scope: resourceGroup
+  scope: rg
+  name: 'api'
   params: {
     name: '${prefix}-api'
     location: location
     tags: tags
     appServicePlanId: appServicePlan.outputs.id
+    applicationInsightsName: monitoring.outputs.applicationInsightsName
     runtimeName: 'python'
     runtimeVersion: '3.9'
-    allowedOrigins: [
-      'https://${prefix}-web.azurestaticapps.net'
-      'https://portal.azure.com'
-    ]
     appSettings: {
-      AZURE_STORAGE_ACCOUNT_NAME: storage.outputs.name
-      AZURE_ML_WORKSPACE_NAME: machinelearning.outputs.name
-      DATABASE_HOST: db.outputs.domainName
+      // 数据库连接
+      DATABASE_URL: 'postgresql://dance-monkey:${dbserverPassword}@${db.outputs.domainName}/dancemonkey'
+      
+      // 存储配置
+      STORAGE_ACCOUNT_NAME: storage.outputs.name
+      STORAGE_ENDPOINTS: string(storage.outputs.primaryEndpoints)
+      
+      // 监控配置
       APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
+      
+      // ML配置
+      AZURE_ML_WORKSPACE_NAME: machinelearning.outputs.name
+      
+      // Key Vault配置（用于获取敏感信息）
       AZURE_KEY_VAULT_ENDPOINT: keyVault.outputs.endpoint
+      
+      // 会话配置
+      SESSION_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.outputs.endpoint}secrets/SessionSecret)'
     }
   }
 }
 
-// ------------------------------------------------------------
-// Role Assignments
-// 允许后端访问 storage， Azure Machine Learning 和 Key Vault
-// ------------------------------------------------------------
-
+// 最小必要的角色分配
 module backendStorageAccess 'core/security/role.bicep' = {
+  scope: rg
   name: 'backendStorageAccess'
-  scope: resourceGroup
   params: {
     principalId: backend.outputs.identityPrincipalId
     roleDefinitionId: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
   }
 }
 
-module backendAzureMLAccess 'core/security/role.bicep' = {
-  name: 'backendAzureMLAccess'
-  scope: resourceGroup
+module backendMLAccess 'core/security/role.bicep' = {
+  scope: rg
+  name: 'backendMLAccess'
   params: {
     principalId: backend.outputs.identityPrincipalId
     roleDefinitionId: '68ff1fee-0230-4b19-a84b-8ab6bef7ab54' // AzureML Data Scientist
@@ -210,23 +171,20 @@ module backendAzureMLAccess 'core/security/role.bicep' = {
 }
 
 module backendKeyVaultAccess 'core/security/role.bicep' = {
+  scope: rg
   name: 'backendKeyVaultAccess'
-  scope: resourceGroup
   params: {
     principalId: backend.outputs.identityPrincipalId
     roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
   }
 }
 
-// ------------------------------------------------------------
 // Outputs
-// ------------------------------------------------------------
-
-output AZURE_LOCATION string = location
+output RESOURCE_GROUP_NAME string = rg.name
 output STORAGE_ACCOUNT_NAME string = storage.outputs.name
-output AZURE_ML_WORKSPACE_NAME string = machinelearning.outputs.name
+output STORAGE_ENDPOINTS object = storage.outputs.primaryEndpoints
 output DATABASE_HOST string = db.outputs.domainName
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
+output AZURE_ML_WORKSPACE_NAME string = machinelearning.outputs.name
 output AZURE_KEY_VAULT_ENDPOINT string = keyVault.outputs.endpoint
-output FRONTEND_URL string = frontend.outputs.uri
 output BACKEND_URL string = backend.outputs.uri
