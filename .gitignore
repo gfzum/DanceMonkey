@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+test-results.xml
+
+# Azure
+.azure/
+*.tfstate
+*.tfstate.*
+.terraform/
+.env.local
+.env.*.local
+
+# Bicep
+*.bicep.json
+infra/**/*.json
+!infra/main.parameters.json
+
+# Logs
+*.log
+logs/
+log/
+
+# Dependencies
+node_modules/
+
+# Build
+/site
+/dist
+/tmp
+
+# Local development
+*.db
+*.sqlite3

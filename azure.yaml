@@ -1,0 +1,16 @@
+name: dance-monkey
+metadata:
+  template: dance-monkey@0.0.1
+services:
+  backend:
+    project: ./backend
+    language: python
+    host: appservice
+    hooks:
+      prepackage:
+        windows: pip install -r requirements.txt
+        posix: pip install -r requirements.txt
+  frontend:
+    project: ./frontend
+    language: typescript
+    host: staticwebapp 

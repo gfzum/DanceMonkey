@@ -1,0 +1,137 @@
+name: Azure Deployment
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  workflow_dispatch:
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  AZURE_ENV_NAME: ${{ secrets.AZURE_ENV_NAME }}
+  AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: dancemonkey
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: dancemonkey_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Run linting
+      run: |
+        black . --check
+        isort . --check
+        flake8 .
+    
+    - name: Run tests
+      env:
+        DATABASE_URL: postgresql://dancemonkey:password@localhost:5432/dancemonkey_test
+      run: |
+        pytest --cov=app --cov-report=xml
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: true
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Install Azure CLI
+      run: |
+        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+    
+    - name: Install Azure Developer CLI
+      run: |
+        curl -fsSL https://aka.ms/install-azd.sh | bash
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Azure Developer CLI Login
+      run: |
+        azd auth login --client-id "${{ secrets.AZURE_CLIENT_ID }}" \
+                      --client-secret "${{ secrets.AZURE_CLIENT_SECRET }}" \
+                      --tenant-id "${{ secrets.AZURE_TENANT_ID }}"
+    
+    - name: Deploy Infrastructure
+      run: |
+        azd provision --no-prompt
+      env:
+        AZURE_ENV_NAME: ${{ secrets.AZURE_ENV_NAME }}
+        AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
+        AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+    - name: Deploy Application
+      run: |
+        azd deploy --no-prompt
+    
+    - name: Run Integration Tests
+      run: |
+        pytest tests/integration --junitxml=test-results.xml
+      env:
+        APP_URL: ${{ steps.deploy.outputs.APP_URL }}
+    
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          test-results.xml
+          .azure/deployment.log
+          .azure/logs/ 
