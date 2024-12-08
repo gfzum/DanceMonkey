@@ -15,17 +15,26 @@ DanceMonkey API采用RESTful设计，提供了一系列端点用于视频上传�
 
 ## 认证
 
-### Bearer Token认证
-所有API请求需要在Header中包含有效的Bearer Token：
-```
-Authorization: Bearer <token>
+### 会话认证
+API使用基于Cookie的会话认证：
+
+1. 登录：
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+    "username": "your_username",
+    "password": "your_password"
+}
 ```
 
-### API密钥认证
-服务间通信可使用API密钥认证：
+2. 登出：
+```http
+POST /api/auth/logout
 ```
-X-API-Key: <api-key>
-```
+
+所有API请求会自动使用会话Cookie进行认证，无需额外配置。
 
 ## CORS配置
 

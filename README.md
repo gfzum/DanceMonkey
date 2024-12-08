@@ -1,6 +1,6 @@
 # DanceMonkey - AI舞蹈编排助手
 
-DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能分析舞蹈视频并生成专业的编舞方案。该系统采用现代化的云原生架构，使用Python FastAPI构建后端服务，React构建前端界面，并充分利用Azure云服务实现AI模型的部署和推理。
+DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能分析舞蹈视频并生成专业的编舞方案。该系统采用现代化的云原生架构，使用Python FastAPI构建后端服务，并充分利用Azure云服务实现AI模型的部署和推理。
 
 ## 功能特点
 
@@ -8,32 +8,70 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 - **智能编舞**：基于AI模型生成专业编舞建议
 - **实时反馈**：提供处理进度的实时状态更新
 - **结果导出**：支持多种格式的编舞方案导出
-- **可视化界面**：直观的Web界面，支持视频预览和结果展示
 
-## 技术架构
+## 系统架构
 
 ### 核心组件
 
-- **前端**：
-  - React + TypeScript
-  - Vite 构建工具
-  - TailwindCSS 样式框架
-  - React Query 数据管理
-  
-- **后端**：
-  - Python FastAPI应用
-  - PostgreSQL数据库
-  - Azure Blob Storage
-  - Azure Machine Learning
-  - Application Insights
+1. **前端应用**
+   - 状态：待开发
+   - 功能规划：
+     - 视频上传和预览
+     - 处理进度展示
+     - 结果可视化
+     - 实时状态更新
 
-### 系统架构图
+2. **后端服务**
+   - FastAPI应用：
+     - 异步处理能力
+     - OpenAPI文档自动生成
+     - 依赖注入系统
+     - 内置验证功能
+   - 异步任务处理：
+     - 后台任务管理
+     - 状态追踪
+     - 进度报告
+     - 错误处理
 
-```
-用户 -> React前端 -> FastAPI后端 -> 存储服务（视频文件）
-                               -> AI服务（动作分析）
-                               -> 数据库（结果存储）
-```
+3. **数据存储**
+   - PostgreSQL数据库：
+     - 用户数据
+     - 视频元数据
+     - 处理任务状态
+     - 分析结果数据
+   - Azure Blob Storage：
+     - 原始视频文件
+     - 处理后的视频
+     - 导出的编舞方案
+
+4. **AI服务**
+   - Azure Machine Learning：
+     - 舞蹈动作识别
+     - 动作序列分析
+     - 编舞生成
+   - 部署模式：
+     - 在线推理端点
+     - 批量处理作业
+
+5. **监控服务**
+   - Application Insights：
+     - API性能监控
+     - 错误追踪
+     - 资源使用监控
+     - 自动告警
+
+### 系统限制
+
+- 视频文件大小：最大500MB
+- 处理时间：单个视频最长30分钟
+- API响应时间：< 200ms（95%请求）
+- 系统可用性：99.9%
+
+### 安全架构
+
+- 身份认证：简单的用户名密码认证
+- 会话管理：基于 FastAPI 的会话中间件
+- 数据安全：HTTPS 传输加密
 
 ## 项目结构
 
@@ -42,23 +80,9 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 ├── .github/                # GitHub Actions配置
 │   └── workflows/         # CI/CD工作流
 ├── docs/                  # 项目文档
-│   ├── architecture.md    # 架构文档
 │   ├── api.md            # API文档
 │   └── deployment.md     # 部署指南
-├── frontend/              # 前端代码
-│   ├── src/              # 源代码
-│   │   ├── components/   # React组件
-│   │   ├── pages/       # 页面组件
-│   │   ├── hooks/       # 自定义Hooks
-│   │   ├── services/    # API服务
-│   │   ├── utils/       # 工具函数
-│   │   ├── types/       # TypeScript类型
-│   │   └── styles/      # 样式文件
-│   ├── public/          # 静态资源
-│   ├── tests/           # 前端测试
-│   ├── vite.config.ts   # Vite配置
-│   ├── tailwind.config.js # Tailwind配置
-│   └── package.json     # 前端依赖
+├── frontend/              # 前端代码（待开发）
 ├── backend/              # 后端代码
 │   ├── app/             # 主应用代码
 │   │   ├── api/        # API相关代码
@@ -89,7 +113,6 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 │   └── main.bicep      # 主要基础设施定义
 ├── .gitignore          # Git忽略配置
 ├── .env.example        # 环境变量示例
-├── package.json        # 项目依赖
 └── README.md          # 项目说明文档
 ```
 
@@ -98,8 +121,7 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 ### 1. 环境准备
 
 #### 前置要求
-- Node.js 18+
-- Python 3.12+
+- Python 3.9+
 - Azure订阅
 - Azure CLI
 - Azure Developer CLI (azd)
@@ -113,13 +135,7 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
    cd DanceMonkey
    ```
 
-2. 安装前端依赖：
-   ```bash
-   cd frontend
-   npm install
-   ```
-
-3. 安装后端依赖：
+2. 安装后端依赖：
    ```bash
    cd backend
    python -m venv .venv
@@ -128,7 +144,7 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
    pip install -r requirements-dev.txt
    ```
 
-4. 设置环境变量：
+3. 设置环境变量：
    ```bash
    cp .env.example .env
    # 编辑.env文件，配置必要的环境变量
@@ -136,45 +152,26 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 
 ### 2. 本地开发
 
-1. 启动前端开发服务器：
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-2. 启动后端服务器：
+1. 启动后端服务器：
    ```bash
    cd backend
    uvicorn app.main:app --reload --port=8000
    ```
 
-3. 访问应用：
-   - 前端界面: http://localhost:5173
+2. 访问API文档：
    - API文档: http://localhost:8000/docs
    - ReDoc: http://localhost:8000/redoc
 
 ### 3. 测试
 
-1. 运行前端测试：
-   ```bash
-   cd frontend
-   npm test
-   ```
-
-2. 运行后端测试：
+1. 运行后端测试：
    ```bash
    cd backend
    pytest
    ```
 
-3. 代码质量检查：
+2. 代码质量检查：
    ```bash
-   # 前端
-   cd frontend
-   npm run lint
-   npm run format
-   
-   # 后端
    cd backend
    black .
    isort .
@@ -197,7 +194,6 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 ## 文档
 
 详细文档请参考：
-- [技术架构](docs/architecture.md)
 - [API文档](docs/api.md)
 - [部署指南](docs/deployment.md)
 

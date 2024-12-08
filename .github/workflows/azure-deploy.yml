@@ -6,22 +6,55 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**.md'
+      - 'frontend/**'
   pull_request:
     branches: [ main ]
     paths-ignore:
       - 'docs/**'
       - '**.md'
+      - 'frontend/**'
   workflow_dispatch:
 
 env:
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   AZURE_ENV_NAME: ${{ secrets.AZURE_ENV_NAME }}
   AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
-  PYTHON_VERSION: '3.12'
+  PYTHON_VERSION: '3.9'
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+    
+    - name: Run code quality checks
+      run: |
+        black . --check
+        isort . --check
+        flake8 .
+
+  test:
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.9']
+        include:
+          - os: windows-latest
+            python-version: '3.9'
     services:
       postgres:
         image: postgres:14
@@ -43,26 +76,20 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
+        python-version: ${{ matrix.python-version }}
         cache: 'pip'
     
-    - name: Install dependencies
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-dev.txt
     
-    - name: Run linting
-      run: |
-        black . --check
-        isort . --check
-        flake8 .
-    
-    - name: Run tests
+    - name: Run unit tests
       env:
         DATABASE_URL: postgresql://dancemonkey:password@localhost:5432/dancemonkey_test
       run: |
-        pytest --cov=app --cov-report=xml
+        pytest --cov=app --cov-report=xml tests/unit
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
@@ -74,6 +101,8 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    outputs:
+      app_url: ${{ steps.deploy_output.outputs.app_url }}
     
     steps:
     - uses: actions/checkout@v3
@@ -120,18 +149,53 @@ jobs:
       run: |
         azd deploy --no-prompt
     
-    - name: Run Integration Tests
+    - name: Get Application URL
+      id: deploy_output
       run: |
-        pytest tests/integration --junitxml=test-results.xml
-      env:
-        APP_URL: ${{ steps.deploy.outputs.APP_URL }}
-    
-    - name: Upload Test Results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-results
-        path: |
-          test-results.xml
-          .azure/deployment.log
-          .azure/logs/ 
+        APP_URL=$(azd env get-values | grep BACKEND_URI | cut -d'=' -f2)
+        echo "app_url=$APP_URL" >> "$GITHUB_OUTPUT"
+
+  test_e2e:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          playwright install chromium --with-deps
+
+      - name: Basic smoke test (curl)
+        run: |
+          echo "Waiting for application to be fully available..."
+          sleep 60
+          curl -sSf ${{ needs.deploy.outputs.app_url }}
+
+      - name: Run integration tests
+        env:
+          APP_URL: ${{ needs.deploy.outputs.app_url }}
+        run: |
+          pytest tests/integration --junitxml=test-results-integration.xml
+
+      - name: Run E2E tests
+        env:
+          APP_URL: ${{ needs.deploy.outputs.app_url }}
+        run: |
+          pytest tests/smoke --live-server-url $APP_URL --junitxml=test-results-e2e.xml
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            test-results-*.xml
+            .azure/deployment.log
+            .azure/logs/

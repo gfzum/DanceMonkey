@@ -2,13 +2,13 @@
 
 ## 概述
 
-本文档详细说明了如何部署DanceMonkey应用到Azure云平台。系统采用前后端分离架构，分别部署到不同的服务上。
+本文档详细说明了如何部署DanceMonkey应用到Azure云平台。
 
 ## 前置要求
 
-### 必需工具
-- Node.js 18+（前端开发）
-- Python 3.12+（后端开发）
+### 本地开发环境
+- Python 3.9+（后端开发）
+- PostgreSQL（本地开发）
 - Azure CLI
 - Azure Developer CLI (azd)
 - Git
@@ -43,21 +43,7 @@
    # 编辑.env文件，配置必要的环境变量
    ```
 
-### 2. 前端部署
-
-1. 构建前端应用：
-   ```bash
-   cd frontend
-   npm install
-   npm run build
-   ```
-
-2. 部署到Azure Static Web Apps：
-   ```bash
-   az staticwebapp create --name <app-name> --resource-group <resource-group> --source .
-   ```
-
-### 3. 后端部署
+### 2. 后端部署
 
 1. 构建后端应用：
    ```bash
@@ -76,12 +62,6 @@
    ```
 
 ## 资源配置
-
-### Static Web Apps（前端）
-- SKU: Standard
-- 自定义域名配置
-- GitHub Actions集成
-- 路由规则配置
 
 ### App Service（后端）
 - SKU: P1v2
@@ -112,13 +92,6 @@
 
 ## 环境变量
 
-### 前端环境变量
-```
-VITE_API_URL=<backend-api-url>
-VITE_STORAGE_URL=<storage-account-url>
-VITE_APP_INSIGHTS_KEY=<appinsights-key>
-```
-
 ### 后端环境变量
 ```
 AZURE_STORAGE_CONNECTION_STRING=<storage-connection-string>
@@ -132,19 +105,13 @@ AZURE_CLIENT_SECRET=<client-secret>
 ## 监控配置
 
 ### Application Insights
-1. 前端监控
-   - 页面加载性能
-   - 用户行为分析
-   - 错误追踪
-   - 资源使用情况
-
-2. 后端监控
+1. 后端监控
    - API响应时间
    - 依赖项延迟
    - 异常率
    - 资源使用情况
 
-3. 告警配置
+2. 告警配置
    - 响应时间 > 1s
    - 错误率 > 1%
    - 存储使用率 > 80%
@@ -152,17 +119,12 @@ AZURE_CLIENT_SECRET=<client-secret>
 ## 安全配置
 
 ### 网络安全
-1. 前端安全
-   - HTTPS强制
-   - CSP配置
-   - CORS策略
-
-2. 后端安全
+1. 后端安全
    - 防火墙规则
    - API认证
    - 数据加密
 
-3. 访问控制
+2. 访问控制
    - Azure AD认证
    - RBAC策略
    - 密钥管理
@@ -180,36 +142,6 @@ on:
     branches: [ main ]
 
 jobs:
-  deploy-frontend:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '18'
-    
-    - name: Install Dependencies
-      run: |
-        cd frontend
-        npm install
-    
-    - name: Build
-      run: |
-        cd frontend
-        npm run build
-    
-    - name: Deploy to Static Web Apps
-      uses: Azure/static-web-apps-deploy@v1
-      with:
-        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        action: "upload"
-        app_location: "frontend/dist"
-        api_location: ""
-        output_location: ""
-
   deploy-backend:
     runs-on: ubuntu-latest
     steps:
@@ -218,7 +150,7 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.12'
+        python-version: '3.9'
     
     - name: Setup Azure CLI
       uses: azure/login@v1
@@ -239,16 +171,7 @@ jobs:
 
 ### 常见问题
 
-1. 前端部署失败
-   ```bash
-   # 检查构建输出
-   npm run build
-   
-   # 检查Static Web Apps日志
-   az staticwebapp logs show
-   ```
-
-2. 后端部署失败
+1. 后端部署失败
    ```bash
    # 检查部署日志
    azd logs
@@ -258,7 +181,7 @@ jobs:
    azd up
    ```
 
-3. 连接问题
+2. 连接问题
    ```bash
    # 检查网络连接
    az network watcher test-connection
@@ -270,17 +193,12 @@ jobs:
 ## 维护指南
 
 ### 日常维护
-1. 前端维护
-   - 更新依赖包
-   - 优化构建配置
-   - 监控性能指标
-
-2. 后端维护
+1. 后端维护
    - 安装安全补丁
    - 更新依赖包
    - 数据库维护
 
-3. 容量规划
+2. 容量规划
    - 监控资源使用
    - 调整规模
    - 优化成本
