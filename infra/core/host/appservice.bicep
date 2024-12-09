@@ -7,7 +7,6 @@ param tags object = {}
 param applicationInsightsName string = ''
 param appServicePlanId string
 param keyVaultName string = ''
-param managedIdentity bool = !empty(keyVaultName)
 
 // Runtime Properties
 @allowed([
@@ -22,21 +21,13 @@ param kind string = 'app,linux'
 
 // Microsoft.Web/sites/config
 param allowedOrigins array = []
-param alwaysOn bool = true
 param appCommandLine string = ''
 @secure()
 param appSettings object = {}
-param clientAffinityEnabled bool = false
 param enableOryxBuild bool = contains(kind, 'linux')
-param functionAppScaleLimit int = -1
 param linuxFxVersion string = runtimeNameAndVersion
-param minimumElasticInstanceCount int = -1
-param numberOfWorkers int = -1
 param scmDoBuildDuringDeployment bool = false
-param use32BitWorkerProcess bool = false
 param ftpsState string = 'FtpsOnly'
-param healthCheckPath string = ''
-param virtualNetworkSubnetId string = ''
 
 resource appService 'Microsoft.Web/sites@2022-03-01' = {
   name: name
@@ -47,15 +38,14 @@ resource appService 'Microsoft.Web/sites@2022-03-01' = {
     serverFarmId: appServicePlanId
     siteConfig: {
       linuxFxVersion: linuxFxVersion
-      alwaysOn: alwaysOn
+      alwaysOn: true
       ftpsState: ftpsState
       minTlsVersion: '1.2'
-      appCommandLine: appCommandLine
-      numberOfWorkers: numberOfWorkers != -1 ? numberOfWorkers : null
-      minimumElasticInstanceCount: minimumElasticInstanceCount != -1 ? minimumElasticInstanceCount : null
-      use32BitWorkerProcess: use32BitWorkerProcess
-      functionAppScaleLimit: functionAppScaleLimit != -1 ? functionAppScaleLimit : null
-      healthCheckPath: healthCheckPath
+      appCommandLine: 'python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2'
+      numberOfWorkers: 1
+      minimumElasticInstanceCount: 1
+      use32BitWorkerProcess: false
+      healthCheckPath: '/health'
       cors: {
         allowedOrigins: union([ 'https://portal.azure.com', 'https://ms.portal.azure.com' ], allowedOrigins)
       }
@@ -63,13 +53,14 @@ resource appService 'Microsoft.Web/sites@2022-03-01' = {
       detailedErrorLoggingEnabled: true
       httpLoggingEnabled: true
       requestTracingEnabled: true
+      // Python 配置
+      pythonVersion: '3.9'
     }
-    clientAffinityEnabled: clientAffinityEnabled
+    clientAffinityEnabled: false
     httpsOnly: true
-    virtualNetworkSubnetId: virtualNetworkSubnetId
   }
 
-  identity: { type: managedIdentity ? 'SystemAssigned' : 'None' }
+  identity: { type: 'SystemAssigned' }
 
   resource basicPublishingCredentialsPoliciesFtp 'basicPublishingCredentialsPolicies' = {
     name: 'ftp'
@@ -124,6 +115,6 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing
   name: applicationInsightsName
 }
 
-output identityPrincipalId string = managedIdentity ? appService.identity.principalId : ''
+output identityPrincipalId string = appService.identity.principalId
 output name string = appService.name
 output uri string = 'https://${appService.properties.defaultHostName}'

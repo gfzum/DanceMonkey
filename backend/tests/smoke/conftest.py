@@ -13,3 +13,8 @@ def pytest_addoption(parser):
 @pytest.fixture(scope="function")
 def live_server_url(request):
     return request.config.getoption("--live-server-url")
+
+
+@pytest.fixture
+def smoke_url():
+    return "https://your-production-url.com"

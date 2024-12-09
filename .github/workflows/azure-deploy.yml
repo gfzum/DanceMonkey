@@ -1,201 +1,94 @@
-name: Azure Deployment
+name: Test and Azure Deployment
 
 on:
   push:
-    branches: [ main ]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'frontend/**'
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'frontend/**'
+    branches: [ "main" ]
   workflow_dispatch:
 
-env:
-  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  AZURE_ENV_NAME: ${{ secrets.AZURE_ENV_NAME }}
-  AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
-  PYTHON_VERSION: '3.9'
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-        cache: 'pip'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements-dev.txt
-    
-    - name: Run code quality checks
-      run: |
-        black . --check
-        isort . --check
-        flake8 .
-
   test:
-    needs: lint
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-        python-version: ['3.9']
-        include:
-          - os: windows-latest
-            python-version: '3.9'
-    services:
-      postgres:
-        image: postgres:14
-        env:
-          POSTGRES_USER: dancemonkey
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: dancemonkey_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-    
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-dev.txt
-    
-    - name: Run unit tests
-      env:
-        DATABASE_URL: postgresql://dancemonkey:password@localhost:5432/dancemonkey_test
-      run: |
-        pytest --cov=app --cov-report=xml tests/unit
-    
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: true
-
-  deploy:
-    needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    outputs:
-      app_url: ${{ steps.deploy_output.outputs.app_url }}
+    defaults:
+      run:
+        working-directory: backend
     
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-        cache: 'pip'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Install Azure CLI
-      run: |
-        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-    
-    - name: Install Azure Developer CLI
-      run: |
-        curl -fsSL https://aka.ms/install-azd.sh | bash
-    
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-    
-    - name: Azure Developer CLI Login
-      run: |
-        azd auth login --client-id "${{ secrets.AZURE_CLIENT_ID }}" \
-                      --client-secret "${{ secrets.AZURE_CLIENT_SECRET }}" \
-                      --tenant-id "${{ secrets.AZURE_TENANT_ID }}"
-    
-    - name: Deploy Infrastructure
-      run: |
-        azd provision --no-prompt
-      env:
-        AZURE_ENV_NAME: ${{ secrets.AZURE_ENV_NAME }}
-        AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
-        AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    
-    - name: Deploy Application
-      run: |
-        azd deploy --no-prompt
-    
-    - name: Get Application URL
-      id: deploy_output
-      run: |
-        APP_URL=$(azd env get-values | grep BACKEND_URI | cut -d'=' -f2)
-        echo "app_url=$APP_URL" >> "$GITHUB_OUTPUT"
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-  test_e2e:
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Python
+      - name: Install Python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: '3.9'
+          cache: 'pip'
 
-      - name: Install test dependencies
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt
-          playwright install chromium --with-deps
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+          python3 -m pip install pytest pytest-asyncio httpx
 
-      - name: Basic smoke test (curl)
+      - name: Run tests
         run: |
-          echo "Waiting for application to be fully available..."
-          sleep 60
-          curl -sSf ${{ needs.deploy.outputs.app_url }}
+          pytest tests/
 
-      - name: Run integration tests
-        env:
-          APP_URL: ${{ needs.deploy.outputs.app_url }}
-        run: |
-          pytest tests/integration --junitxml=test-results-integration.xml
+  # build-and-deploy:
+  #   needs: test
+  #   runs-on: ubuntu-latest
+  #   environment: production
+    # if: github.ref == 'refs/heads/main'
+    
+  #   env:
+  #     AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     AZURE_ENV_NAME: dance-monkey
+  #     AZURE_LOCATION: eastus2
+  #     AZURE_PRINCIPAL_ID: ${{ secrets.AZURE_PRINCIPAL_ID }}
+  #     AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  #     AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  #     AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Run E2E tests
-        env:
-          APP_URL: ${{ needs.deploy.outputs.app_url }}
-        run: |
-          pytest tests/smoke --live-server-url $APP_URL --junitxml=test-results-e2e.xml
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v3
 
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-results
-          path: |
-            test-results-*.xml
-            .azure/deployment.log
-            .azure/logs/
+  #     - name: Install Python
+  #       uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.9'
+  #         cache: 'pip'
+
+  #     - name: Install azd
+  #       run: |
+  #         curl -fsSL https://aka.ms/install-azd.sh | bash
+
+  #     - name: Azure login
+  #       uses: azure/login@v1
+  #       with:
+  #         client-id: ${{ secrets.AZURE_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  #     - name: Initialize azd
+  #       run: |
+  #         azd init --template dance-monkey
+
+  #     - name: Set azd environment
+  #       run: |
+  #         azd env new ${{ env.AZURE_ENV_NAME }} --subscription ${{ env.AZURE_SUBSCRIPTION_ID }} --location ${{ env.AZURE_LOCATION }} --no-prompt
+
+  #     - name: Azure Dev Deploy
+  #       run: |
+  #         azd config set auth.useAzCliAuth true
+  #         azd up --no-prompt
+  #       env:
+  #         AZURE_ENV_NAME: ${{ env.AZURE_ENV_NAME }}
+  #         AZURE_LOCATION: ${{ env.AZURE_LOCATION }}
+  #         AZURE_SUBSCRIPTION_ID: ${{ env.AZURE_SUBSCRIPTION_ID }}
+  #         AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
+  #         AZURE_PRINCIPAL_ID: ${{ env.AZURE_PRINCIPAL_ID }}

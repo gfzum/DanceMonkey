@@ -1,35 +1,11 @@
-# global requirements
-gunicorn==21.2.0
-uvicorn[standard]==0.23.2
-
-# Web Framework
+# Core Web Framework
 fastapi==0.104.1
 uvicorn[standard]==0.23.2
-gunicorn==21.2.0
-python-multipart==0.0.6
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-
-# Database
-sqlmodel==0.0.11
-psycopg2-binary==2.9.9
-alembic==1.12.1
-
-# Azure
-azure-storage-blob==12.18.3
-azure-identity==1.14.1
-azure-keyvault-secrets==4.7.0
-azure-monitor-opentelemetry==1.2.0
-
-# Utils
-python-dotenv==1.0.0
-pydantic==2.4.2
-pydantic-settings==2.0.3
-tenacity==8.2.3
+pydantic>=1.9.0,<2.0.0
+requests>=2.31.0
 
 # Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.1
-pytest-cov==4.1.0
-
+pytest>=7.3.1
+httpx>=0.24.0
+pytest-asyncio>=0.21.0
+ephemeral-port-reserve>=1.1.4

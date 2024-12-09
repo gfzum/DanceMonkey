@@ -65,3 +65,4 @@ resource resultsContainer 'Microsoft.Storage/storageAccounts/blobServices/contai
 output id string = storage.id
 output name string = storage.name
 output primaryEndpoints object = storage.properties.primaryEndpoints
+output primaryAccessKey string = storage.listKeys().keys[0].value

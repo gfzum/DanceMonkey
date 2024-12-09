@@ -50,19 +50,6 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
      - API性能监控
      - 错误追踪
      - 资源使用监控
-   - Key Vault：
-     - 密钥管理
-     - 敏感配置存储
-   - 身份认证：
-     - 基于 FastAPI 的认证中间件
-     - HTTPS 传输加密
-
-### 系统限制
-
-- 视频文件大小：最大500MB
-- 处理时间：单个视频最长30分钟
-- API响应时间：< 200ms（95%请求）
-- 系统可用性：99.9%
 
 ## 项目结构
 
@@ -71,39 +58,21 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 ├── .github/                # GitHub Actions配置
 │   └── workflows/         # CI/CD工作流
 ├── docs/                  # 项目文档
-│   ├── api.md            # API文档
-│   └── deployment.md     # 部署指南
 ├── frontend/              # 前端代码（待开发）
 ├── backend/              # 后端代码
 │   ├── app/             # 主应用代码
-│   │   ├── api/        # API相关代码
-│   │   │   ├── endpoints/
-│   │   │   └── deps.py
-│   │   ├── core/      # 核心功能
-│   │   │   ├── config.py
-│   │   │   └── security.py
-│   │   ├── models/    # 数据模型
-│   │   │   ├── video.py
-│   │   │   └── dance.py
-│   │   └── services/  # 业务服务
-│   │       ├── storage.py
-│   │       ├── ml.py
-│   │       └── processing.py
 │   ├── tests/          # 后端测试
-│   ├── alembic/        # 数据库迁移
-│   ├── gunicorn.conf.py # Gunicorn配置
-│   └── entrypoint.sh   # 启动脚本
+│   └── requirements.txt # Python 依赖
 ├── infra/               # 基础设施代码
 │   ├── core/           # 核心基础设施模块
 │   │   ├── ai/        # AzureML配置
 │   │   ├── storage/   # Blob存储配置
 │   │   ├── monitor/   # Application Insights配置
 │   │   ├── host/      # App Service配置
-│   │   ├── database/  # PostgreSQL配置
-│   │   └── security/  # 角色和权限配置
+│   │   └── database/  # PostgreSQL配置
 │   └── main.bicep      # 主要基础设施定义
 ├── .gitignore          # Git忽略配置
-├── .env.example        # 环境变量示例
+├── azure.yaml          # Azure 部署配置
 └── README.md          # 项目说明文档
 ```
 
@@ -116,7 +85,6 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 - Azure订阅
 - Azure CLI
 - Azure Developer CLI (azd)
-- PostgreSQL（本地开发）
 
 #### 本地开发环境设置
 
@@ -130,15 +98,8 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
    ```bash
    cd backend
    python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   source .venv/bin/activate
    pip install -r requirements.txt
-   pip install -r requirements-dev.txt
-   ```
-
-3. 设置环境变量：
-   ```bash
-   cp .env.example .env
-   # 编辑.env文件，配置必要的环境变量
    ```
 
 ### 2. 本地开发
@@ -146,7 +107,7 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 1. 启动后端服务器：
    ```bash
    cd backend
-   uvicorn app.main:app --reload --port=8000
+   uvicorn app.main:app --reload --port 8000
    ```
 
 2. 访问API文档：
@@ -155,19 +116,11 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 
 ### 3. 测试
 
-1. 运行后端测试：
-   ```bash
-   cd backend
-   pytest
-   ```
-
-2. 代码质量检查：
-   ```bash
-   cd backend
-   black .
-   isort .
-   flake8
-   ```
+运行后端测试：
+```bash
+cd backend
+pytest tests/
+```
 
 ### 4. 部署
 
@@ -180,21 +133,46 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
    ```bash
    # 部署所有资源
    azd up
+
+   # 只是更新代码，没有更新资源
+   azd deploy api
    ```
 
-## 文档
+3. 重启应用：
+```bash
+az webapp restart \
+--name $APP_SERVICE_NAME \
+--resource-group $RESOURCE_GROUP_NAME
+```
 
-详细文档请参考：
-- [API文档](docs/api.md)
-- [部署指南](docs/deployment.md)
 
-## 贡献指南
+## CI/CD
 
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建Pull Request
+项目使用 GitHub Actions 进行持续集成和部署：
+
+1. **测试阶段**：
+   - 运行单元测试
+   - Python 3.9 环境
+   - 自动运行所有测试用例
+
+2. **部署阶段**（暂未启用）：
+   - 使用 Azure Developer CLI (azd)
+   - 自动部署到 Azure
+   - 环境变量和密钥管理
+
+## API 端点
+
+1. **健康检查**
+   ```
+   GET /health
+   Response: {"status": "ok"}
+   ```
+
+2. **根路径**
+   ```
+   GET /
+   Response: {"status": "healthy", "service": "dance-monkey-api"}
+   ```
 
 ## 许可证
 
