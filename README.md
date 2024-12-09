@@ -119,6 +119,7 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
 运行后端测试：
 ```bash
 cd backend
+source .venv/bin/activate
 pytest tests/
 ```
 
