@@ -37,13 +37,10 @@ DanceMonkey是一个基于Azure云服务的AI舞蹈编排助手，能够智能�
      - 导出的编舞方案
 
 3. **AI服务**
-   - Azure Machine Learning：
-     - 舞蹈动作识别
-     - 动作序列分析
-     - 编舞生成
-   - 部署模式：
-     - 在线推理端点
-     - 批量处理作业
+   - Azure Machine Learning：企业级完整流程，部署配置麻烦
+   - ACI：自己创建容器，执行模型推理脚本，后端调用
+   - 直接集成到 web 应用里：需要开资源多的 GPU 服务器
+   - AI Studio：简单快速
 
 4. **监控和安全**
    - Application Insights：

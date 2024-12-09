@@ -17,12 +17,6 @@ services:
     project: backend
     language: python
     host: appservice
-    hooks:
-      predeploy:
-        shell: sh
-        run: |
-          python3 -m pip install --upgrade pip --quiet
-          python3 -m pip install -r requirements.txt --quiet
 
 # 环境变量
 variables:
